@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-
 	"io"
 
 	"github.com/signintech/pdft/minigopdf/fontmaker/core"
@@ -132,6 +131,28 @@ func (s *SubsetFontObj) AddChars(txt string) error {
 		}
 		glyphIndex, err := s.CharCodeToGlyphIndex(runeValue)
 		if err != nil {
+			return err
+		}
+		s.CharacterToGlyphIndex.Set(runeValue, glyphIndex) // [runeValue] = glyphIndex
+	}
+	return nil
+}
+
+// AddCharsWithFallback add char to map CharacterToGlyphIndex
+func (s *SubsetFontObj) AddCharsWithFallback(txt string, fallback *SubsetFontObj) error {
+	for index, runeValue := range txt {
+		if s.CharacterToGlyphIndex.KeyExists(runeValue) && fallback.CharacterToGlyphIndex.KeyExists(runeValue) {
+			continue
+		}
+		glyphIndex, err := s.CharCodeToGlyphIndex(runeValue)
+		if err != nil {
+			if err.Error() == "not found glyph" {
+				if glyphIndex, err = fallback.CharCodeToGlyphIndex(runeValue); err == nil {
+					fallback.CharacterToGlyphIndex.Set(runeValue, glyphIndex)
+				} else {
+					fmt.Printf(">>\tUse fallback index: %d, fbName: %v, ERR: %v\n", index, fallback.Family, err)
+				}
+			}
 			return err
 		}
 		s.CharacterToGlyphIndex.Set(runeValue, glyphIndex) // [runeValue] = glyphIndex

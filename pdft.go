@@ -33,6 +33,8 @@ const Center = gopdf.Center //010000
 //Middle middle
 const Middle = gopdf.Middle //100000
 
+const _FallbackSuffix = "_$fb" // Suffix Of Fallback Font Stored Name
+
 //PDFt inject text to pdf
 type PDFt struct {
 	pdf           PDFData
@@ -201,6 +203,36 @@ func (i *PDFt) Insert(text string, pageNum int, x float64, y float64, w float64,
 	return i.fontDatas[ct.fontName].addChars(text)
 }
 
+// InsertWithFallback insert text in to pdf with fallback font, if existed!
+func (i *PDFt) InsertWithFallback(text string, pageNum int, x float64, y float64, w float64, h float64, align int) error {
+	fbName := i.curr.fontName+_FallbackSuffix
+	fallbackFont, have := i.fontDatas[fbName]
+	// if fallback not found will call Insert(), do not return error!
+	if !have {
+		return i.Insert(text, pageNum, x, y, w, h, align)
+	}
+	var ct ContentText
+	ct.text = text
+	ct.fontName = i.curr.fontName
+	ct.fontStyle = i.curr.fontStyle
+	ct.fontSize = i.curr.fontSize
+	ct.pageNum = pageNum
+	ct.x = x
+	ct.y = y
+	ct.w = w
+	ct.h = h
+	ct.align = align
+	ct.lineWidth = i.curr.lineWidth
+	ct.setProtection(i.protection())
+	font, have := i.fontDatas[ct.fontName]
+	if !have {
+		return ErrFontNameNotFound
+	}
+	ct.pdfFontData = font
+	i.contenters = append(i.contenters, &ct)
+	return font.addCharsWithFallback(text, fallbackFont)
+}
+
 // MeasureTextWidth measure text width
 func (i *PDFt) MeasureTextWidth(text string) (float64, error) {
 	i.fontDatas[i.curr.fontName].addChars(text)
@@ -363,6 +395,32 @@ func (i *PDFt) AddFont(name string, ttfpath string) error {
 	}
 
 	i.fontDatas[name] = fontData
+	return nil
+}
+
+// AddFontWithFallback add ttf font and fallback font, when ttf font shown 'not found glyph' err, will try by fallback font.
+func (i *PDFt) AddFontWithFallback(name, ttfpath, ttfFallback string) error {
+	if _, have := i.fontDatas[name]; have {
+		return ErrAddSameFontName
+	}
+
+	fallbackName := name+_FallbackSuffix
+	if _, have := i.fontDatas[fallbackName]; have {
+		return ErrAddSameFontName
+	}
+
+	fontData, err := PDFParseFont(ttfpath, name)
+	if err != nil {
+		return err
+	}
+
+	fallbackFontData, err := PDFParseFont(ttfFallback, fallbackName)
+	if err != nil {
+		return err
+	}
+
+	i.fontDatas[name] = fontData
+	i.fontDatas[fallbackName] = fallbackFontData
 	return nil
 }
 

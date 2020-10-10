@@ -56,6 +56,10 @@ func (p *PDFFontData) addChars(text string) error {
 	return p.font.AddChars(text)
 }
 
+func (p *PDFFontData) addCharsWithFallback(text string, fallback *PDFFontData) error {
+	return p.font.AddCharsWithFallback(text, &fallback.font)
+}
+
 func (p *PDFFontData) build() (int, error) {
 
 	p.fontID = p.startID + 1
